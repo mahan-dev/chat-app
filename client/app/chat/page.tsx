@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { clearAuth, getToken } from '@/lib/auth';
-import { UserProfile, ConversationSummary } from '@/lib/types';
+import { UserProfile, ConversationSummary, Message } from '@/lib/types';
 import { Avatar } from '@/components/Avatar';
 import { getDisplayName } from '@/lib/utils';
+import { getSocket, disconnectSocket } from '@/lib/socket';
 
 export default function ChatPage() {
   const router = useRouter();
@@ -15,6 +16,17 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversation, setActiveConversation] = useState<ConversationSummary | null>(null);
   
+  const activeConversationRef = useRef<ConversationSummary | null>(null);
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [searching, setSearching] = useState(false);
@@ -22,7 +34,16 @@ export default function ChatPage() {
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     const token = getToken();
@@ -40,47 +61,108 @@ export default function ChatPage() {
         setConversations(convs);
         setLoading(false);
       })
-      .catch((err) => {
-        setError(err.message || 'Failed to initialize session');
+      .catch((err: unknown) => {
+        const errorObj = err as { message?: string };
+        setError(errorObj.message || 'Failed to initialize session');
         clearAuth();
         router.replace('/login');
       });
+
+    const socket = getSocket();
+    if (socket) {
+      const handleNewMessage = (msg: Message) => {
+        // Update sidebar conversations
+        setConversations((prev) => {
+          const index = prev.findIndex((c) => c.id === msg.conversation_id);
+          if (index !== -1) {
+            const updated = [...prev];
+            const conv = { ...updated[index], last_message: msg };
+            updated.splice(index, 1);
+            updated.unshift(conv);
+            return updated;
+          } else {
+            // New conversation we didn't have in state yet, fetch conversations list
+            apiFetch<ConversationSummary[]>('/api/conversations')
+              .then((convs) => setConversations(convs))
+              .catch(() => {});
+            return prev;
+          }
+        });
+
+        // Append to active conversation messages if currently viewing it
+        if (activeConversationRef.current?.id === msg.conversation_id) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+        }
+      };
+
+      socket.on('message:new', handleNewMessage);
+
+      return () => {
+        socket.off('message:new', handleNewMessage);
+      };
+    }
   }, [router]);
 
-  // Handle user search input
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
+  const selectConversation = async (conv: ConversationSummary) => {
+    setActiveConversation(conv);
+    setMessagesLoading(true);
+    setSendError('');
+    try {
+      const msgs = await apiFetch<Message[]>(`/api/conversations/${conv.id}/messages`);
+      setMessages(msgs);
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      setSendError(errorObj.message || 'Failed to load messages');
+      setMessages([]);
+    } finally {
+      setMessagesLoading(false);
     }
+  };
 
-    const trimmed = searchQuery.trim();
-    if (!trimmed) {
+  const handleSearchChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+    if (!val.trim()) {
       setSearchResults([]);
       setSearching(false);
       setSearchError('');
+    } else {
+      setSearching(true);
+      setSearchError('');
+    }
+  };
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
       return;
     }
 
-    setSearching(true);
-    setSearchError('');
+    const controller = new AbortController();
 
-    searchTimeoutRef.current = setTimeout(() => {
-      apiFetch<UserProfile[]>(`/api/users?q=${encodeURIComponent(trimmed)}`)
+    const timer = setTimeout(() => {
+      apiFetch<UserProfile[]>(`/api/users?q=${encodeURIComponent(trimmed)}`, {
+        signal: controller.signal,
+      })
         .then((users) => {
           setSearchResults(users);
           setSearching(false);
         })
-        .catch((err) => {
-          setSearchError(err.message || 'Search failed');
+        .catch((err: unknown) => {
+          const errorObj = err as { name?: string; message?: string };
+          if (errorObj.name === 'AbortError') return;
+          setSearchError(errorObj.message || 'Search failed');
           setSearchResults([]);
           setSearching(false);
         });
     }, 200);
 
     return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
+      clearTimeout(timer);
+      controller.abort();
     };
   }, [searchQuery]);
 
@@ -91,7 +173,6 @@ export default function ChatPage() {
         body: JSON.stringify({ username: user.username }),
       });
 
-      // Add to conversations list if not already present, or update existing
       setConversations((prev) => {
         const exists = prev.some((c) => c.id === summary.id);
         if (exists) {
@@ -100,15 +181,47 @@ export default function ChatPage() {
         return [summary, ...prev];
       });
 
-      setActiveConversation(summary);
       setSearchQuery('');
       setSearchResults([]);
-    } catch (err: any) {
-      setSearchError(err.message || 'Failed to open conversation');
+      setSearching(false);
+      await selectConversation(summary);
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      setSearchError(errorObj.message || 'Failed to open conversation');
     }
   };
 
+  const handleSendMessage = (e: FormEvent) => {
+    e.preventDefault();
+    if (!activeConversation || !newMessage.trim() || sending) return;
+
+    const content = newMessage.trim();
+    if (content.length > 2000) {
+      setSendError('Message is too long (max 2000 chars)');
+      return;
+    }
+
+    const socket = getSocket();
+    if (!socket) {
+      setSendError('Not connected to chat server');
+      return;
+    }
+
+    setSending(true);
+    setSendError('');
+
+    socket.emit('message:send', { conversation_id: activeConversation.id, content }, (res: { message?: Message; error?: string }) => {
+      setSending(false);
+      if (res.error) {
+        setSendError(res.error);
+      } else {
+        setNewMessage('');
+      }
+    });
+  };
+
   const handleLogout = () => {
+    disconnectSocket();
     clearAuth();
     router.replace('/login');
   };
@@ -131,8 +244,12 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#F4F1EA] text-[#2B2D2F]">
-      {/* Sidebar */}
-      <aside className="flex w-80 flex-col border-r border-[#E2DCD2] bg-[#FAF8F5]">
+      {/* Sidebar: hidden on mobile when active conversation is selected */}
+      <aside
+        className={`flex w-full flex-col border-r border-[#E2DCD2] bg-[#FAF8F5] md:w-80 ${
+          activeConversation ? 'hidden md:flex' : 'flex'
+        }`}
+      >
         {/* Current user header */}
         <div className="flex items-center justify-between border-b border-[#E2DCD2] p-4">
           <div className="flex items-center gap-3 overflow-hidden">
@@ -165,7 +282,7 @@ export default function ChatPage() {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearchChange}
             placeholder="Search people to message..."
             className="w-full rounded-2xl border border-[#E2DCD2] bg-white px-4 py-2.5 text-sm text-[#2B2D2F] placeholder-[#9A9D9E] focus:border-[#C66B3D] focus:outline-none focus:ring-1 focus:ring-[#C66B3D]"
           />
@@ -210,7 +327,7 @@ export default function ChatPage() {
               return (
                 <button
                   key={conv.id}
-                  onClick={() => setActiveConversation(conv)}
+                  onClick={() => selectConversation(conv)}
                   className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-colors ${
                     isActive ? 'bg-[#E8DCC7]/50 font-medium' : 'hover:bg-[#FAF8F5]'
                   }`}
@@ -236,13 +353,23 @@ export default function ChatPage() {
         </div>
       </aside>
 
-      {/* Main Chat Pane */}
-      <main className="flex flex-1 flex-col bg-[#F4F1EA]">
+      {/* Main Chat Pane: hidden on mobile when no active conversation */}
+      <main
+        className={`flex-1 flex-col bg-[#F4F1EA] ${
+          activeConversation ? 'flex' : 'hidden md:flex'
+        }`}
+      >
         {activeConversation ? (
           <>
             {/* Active Conversation Header */}
-            <header className="flex items-center justify-between border-b border-[#E2DCD2] bg-[#FAF8F5] px-8 py-4">
+            <header className="flex items-center justify-between border-b border-[#E2DCD2] bg-[#FAF8F5] px-4 md:px-8 py-4">
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveConversation(null)}
+                  className="rounded-full border border-[#E2DCD2] bg-white px-3 py-1.5 text-xs font-medium text-[#2B2D2F] hover:bg-[#F4F1EA] md:hidden"
+                >
+                  ← Back
+                </button>
                 <Avatar user={activeConversation.peer} size="md" />
                 <div>
                   <h2 className="font-semibold text-[#2B2D2F]">{getDisplayName(activeConversation.peer)}</h2>
@@ -251,14 +378,77 @@ export default function ChatPage() {
               </div>
             </header>
 
-            {/* Message Pane (Empty awaiting F4) */}
-            <div className="flex flex-1 items-center justify-center p-6 text-center">
-              <div className="max-w-sm rounded-3xl border border-[#E2DCD2] bg-[#FAF8F5] p-8 shadow-xs">
-                <h3 className="mb-1 text-lg font-semibold text-[#2B2D2F]">Conversation initialized</h3>
-                <p className="text-xs text-[#6B6E70]">
-                  Real-time messaging via WebSockets will be wired up in F4.
-                </p>
-              </div>
+            {/* Message History Pane */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+              {messagesLoading ? (
+                <div className="flex h-full items-center justify-center text-xs text-[#6B6E70]">
+                  Loading messages...
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-center">
+                  <div className="max-w-xs rounded-3xl border border-[#E2DCD2] bg-[#FAF8F5] p-6 text-xs text-[#6B6E70]">
+                    No messages yet. Send a message below to start the conversation!
+                  </div>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isMe = msg.sender_id === currentUser?.id;
+                  const senderUser = isMe ? currentUser : activeConversation.peer;
+                  const timeString = new Date(msg.created_at.replace(' ', 'T') + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                    >
+                      <Avatar user={senderUser} size="sm" />
+                      <div
+                        className={`max-w-md rounded-2xl px-4 py-2.5 text-sm shadow-xs ${
+                          isMe
+                            ? 'bg-[#2B2D2F] text-white rounded-br-xs'
+                            : 'bg-white text-[#2B2D2F] border border-[#E2DCD2] rounded-bl-xs'
+                        }`}
+                      >
+                        <div className="break-words">{msg.content}</div>
+                        <div
+                          className={`mt-1 text-[10px] text-right ${
+                            isMe ? 'text-[#C5C7C8]' : 'text-[#9A9D9E]'
+                          }`}
+                        >
+                          {timeString}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Send Message Form */}
+            <div className="border-t border-[#E2DCD2] bg-[#FAF8F5] p-4">
+              {sendError && (
+                <div className="mb-2 rounded-xl bg-[#FDF2F0] px-3 py-2 text-xs text-[#C66B3D]">
+                  {sendError}
+                </div>
+              )}
+              <form onSubmit={handleSendMessage} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  maxLength={2000}
+                  className="flex-1 rounded-2xl border border-[#E2DCD2] bg-white px-4 py-3 text-sm text-[#2B2D2F] placeholder-[#9A9D9E] focus:border-[#C66B3D] focus:outline-none focus:ring-1 focus:ring-[#C66B3D]"
+                />
+                <button
+                  type="submit"
+                  disabled={sending || !newMessage.trim()}
+                  className="rounded-2xl bg-[#2B2D2F] px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A4D4E] focus:outline-none focus:ring-2 focus:ring-[#2B2D2F] focus:ring-offset-2 disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </form>
             </div>
           </>
         ) : (

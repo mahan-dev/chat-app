@@ -117,3 +117,32 @@ export function getConversationsHandler(req: AuthedRequest, res: Response): void
 
   res.json(summaries);
 }
+
+export function getMessagesHandler(req: AuthedRequest, res: Response): void {
+  const currentUserId = req.userId!;
+  const conversationId = Number(req.params.id);
+
+  if (isNaN(conversationId)) {
+    res.status(400).json({ error: 'Invalid conversation ID' });
+    return;
+  }
+
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversationId) as any;
+  if (!conv) {
+    res.status(404).json({ error: 'Conversation not found' });
+    return;
+  }
+
+  if (conv.user_a !== currentUserId && conv.user_b !== currentUserId) {
+    res.status(403).json({ error: 'Access denied' });
+    return;
+  }
+
+  const messages = db.prepare(
+    `SELECT * FROM (
+       SELECT * FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 50
+     ) ORDER BY id ASC`
+  ).all(conversationId) as Message[];
+
+  res.json(messages);
+}

@@ -27,8 +27,9 @@ export default function LoginPage() {
 
       setAuth(res.token, res.user);
       router.push('/chat');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      setError(errorObj.message || 'Login failed');
     } finally {
       setLoading(false);
     }

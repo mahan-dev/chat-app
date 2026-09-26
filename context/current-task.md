@@ -1,28 +1,26 @@
 # current-task — The Single Active Task
 
-**Task:** F4 — Realtime messaging
+**Task:** F5 — Delete account
 **Status:** not started
-**Spec:** see `features.md` → F4. Read `stack.md` and `architecture.md` before starting.
+**Spec:** see `features.md` → F5. Read `stack.md` and `architecture.md` before starting.
 
 ## Scope
 
-- Server: `sockets.ts` — JWT handshake auth, personal rooms `user:<id>`, `message:send` event with ack, `GET /api/conversations/:id/messages` (last 50, oldest first, participants only)
-- Client: Socket.IO client singleton, message pane rendering history + live messages, send form, sidebar reordering / unknown conversation fetching on `message:new`
+- Server: `DELETE /api/me` requiring `{password}`; transaction: anonymize user (`deleted#<id>`, blank profile fields, clear password_hash, set deleted_at), disconnect user sockets, `message:send` validation rejecting messages to/from deleted users.
+- Client: Danger zone on `/profile` — type-password-to-confirm dialog; on success clear storage → `/login`; deleted peers render as "Deleted User" with disabled message input.
 
 ## Out of scope
 
-Account deletion and polish features (F5-F6).
+Polish features (F6).
 
 ## Checklist (verify before marking done)
 
-- [ ] Two browsers, two accounts: messages appear on both sides instantly
-- [ ] History survives server restart
-- [ ] Bad token cannot connect socket
-- [ ] Messages from conversation X never render in conversation Y
-- [ ] Recipient's sidebar shows brand-new conversation without refresh
+- [ ] Deleted account cannot log in and old JWT gets 401
+- [ ] Other user sees full conversation, attributed to "Deleted User", and cannot send to it
+- [ ] No profile data of deleted user survives in DB
 - [ ] `cd server && npx tsc --noEmit` — clean
 - [ ] `npm run build --prefix client` — clean
 
 ## On completion
 
-Append entry to `done.md` → load F5 into this file → commit.
+Append entry to `done.md` → load F6 into this file → commit.

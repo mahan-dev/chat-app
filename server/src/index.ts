@@ -5,7 +5,8 @@ import { Server } from 'socket.io';
 import { initDb } from './db.js';
 import { signupHandler, loginHandler, getMeHandler, patchMeHandler, requireAuth } from './auth.js';
 import { getUsersHandler } from './users.js';
-import { createConversationHandler, getConversationsHandler } from './conversations.js';
+import { createConversationHandler, getConversationsHandler, getMessagesHandler } from './conversations.js';
+import { setupSockets } from './sockets.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is missing.');
@@ -26,6 +27,8 @@ const io = new Server(httpServer, {
   }
 });
 
+setupSockets(io);
+
 app.use(cors({ origin: CLIENT_URL }));
 app.use(express.json());
 
@@ -41,6 +44,7 @@ app.patch('/api/me', requireAuth, patchMeHandler);
 app.get('/api/users', requireAuth, getUsersHandler);
 app.get('/api/conversations', requireAuth, getConversationsHandler);
 app.post('/api/conversations', requireAuth, createConversationHandler);
+app.get('/api/conversations/:id/messages', requireAuth, getMessagesHandler);
 
 httpServer.listen(Number(PORT), () => {
   console.log(`Server running on http://localhost:${PORT}`);

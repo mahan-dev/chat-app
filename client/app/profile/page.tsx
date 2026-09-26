@@ -4,7 +4,7 @@ import { useEffect, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
-import { getToken, getUser, setAuth, clearAuth } from '@/lib/auth';
+import { getToken, setAuth, clearAuth } from '@/lib/auth';
 import { UserProfile } from '@/lib/types';
 import { Avatar } from '@/components/Avatar';
 import { getDisplayName } from '@/lib/utils';
@@ -64,8 +64,9 @@ export default function ProfilePage() {
         setAuth(token, updated);
       }
       setSuccess('Profile updated successfully.');
-    } catch (err: any) {
-      setError(err.message || 'Failed to update profile');
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      setError(errorObj.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
