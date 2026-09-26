@@ -4,6 +4,8 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { initDb } from './db.js';
 import { signupHandler, loginHandler, getMeHandler, patchMeHandler, requireAuth } from './auth.js';
+import { getUsersHandler } from './users.js';
+import { createConversationHandler, getConversationsHandler } from './conversations.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is missing.');
@@ -35,6 +37,10 @@ app.post('/api/auth/signup', signupHandler);
 app.post('/api/auth/login', loginHandler);
 app.get('/api/me', requireAuth, getMeHandler);
 app.patch('/api/me', requireAuth, patchMeHandler);
+
+app.get('/api/users', requireAuth, getUsersHandler);
+app.get('/api/conversations', requireAuth, getConversationsHandler);
+app.post('/api/conversations', requireAuth, createConversationHandler);
 
 httpServer.listen(Number(PORT), () => {
   console.log(`Server running on http://localhost:${PORT}`);
