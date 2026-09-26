@@ -111,3 +111,64 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
 export function getMeHandler(req: AuthedRequest, res: Response): void {
   res.json(req.user);
 }
+
+export function patchMeHandler(req: AuthedRequest, res: Response): void {
+  const userId = req.userId!;
+  const { first_name, last_name, bio } = req.body;
+
+  const currentUser = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+  if (!currentUser || currentUser.deleted_at) {
+    res.status(401).json({ error: 'Not authenticated or account deleted' });
+    return;
+  }
+
+  let newFirstName = currentUser.first_name;
+  let newLastName = currentUser.last_name;
+  let newBio = currentUser.bio;
+
+  if (first_name !== undefined) {
+    if (typeof first_name !== 'string') {
+      res.status(400).json({ error: 'Invalid first_name' });
+      return;
+    }
+    const trimmed = first_name.trim();
+    if (trimmed.length > 40) {
+      res.status(400).json({ error: 'First name must be 40 characters or less' });
+      return;
+    }
+    newFirstName = trimmed;
+  }
+
+  if (last_name !== undefined) {
+    if (typeof last_name !== 'string') {
+      res.status(400).json({ error: 'Invalid last_name' });
+      return;
+    }
+    const trimmed = last_name.trim();
+    if (trimmed.length > 40) {
+      res.status(400).json({ error: 'Last name must be 40 characters or less' });
+      return;
+    }
+    newLastName = trimmed;
+  }
+
+  if (bio !== undefined) {
+    if (typeof bio !== 'string') {
+      res.status(400).json({ error: 'Invalid bio' });
+      return;
+    }
+    const trimmed = bio.trim();
+    if (trimmed.length > 200) {
+      res.status(400).json({ error: 'Bio must be 200 characters or less' });
+      return;
+    }
+    newBio = trimmed;
+  }
+
+  db.prepare(
+    'UPDATE users SET first_name = ?, last_name = ?, bio = ? WHERE id = ?'
+  ).run(newFirstName, newLastName, newBio, userId);
+
+  const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+  res.json(dbUserToProfile(updated));
+}
