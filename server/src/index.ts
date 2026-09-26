@@ -3,6 +3,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { initDb } from './db.js';
+import { signupHandler, loginHandler, getMeHandler, requireAuth } from './auth.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is missing.');
@@ -29,6 +30,10 @@ app.use(express.json());
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
+
+app.post('/api/auth/signup', signupHandler);
+app.post('/api/auth/login', loginHandler);
+app.get('/api/me', requireAuth, getMeHandler);
 
 httpServer.listen(Number(PORT), () => {
   console.log(`Server running on http://localhost:${PORT}`);
