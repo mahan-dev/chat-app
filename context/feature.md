@@ -86,7 +86,7 @@ and cannot send to it; no profile data of the deleted user survives in the DB.
 
 ## F6 — Polish
 
-Auto-scroll (only when already at bottom), empty states (no conversations, no
+Infinite scroll in user lists and chat page including pagination for fetching users and conversations messages , Auto-scroll (only when already at bottom), empty states (no conversations, no
 messages, no search results), loading states, connection-status indicator,
 failed-send feedback, consistent Tailwind pass, usable at 375px width.
 

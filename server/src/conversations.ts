@@ -121,6 +121,7 @@ export function getConversationsHandler(req: AuthedRequest, res: Response): void
 export function getMessagesHandler(req: AuthedRequest, res: Response): void {
   const currentUserId = req.userId!;
   const conversationId = Number(req.params.id);
+  const beforeId = req.query.before_id ? Number(req.query.before_id) : null;
 
   if (isNaN(conversationId)) {
     res.status(400).json({ error: 'Invalid conversation ID' });
@@ -138,11 +139,20 @@ export function getMessagesHandler(req: AuthedRequest, res: Response): void {
     return;
   }
 
-  const messages = db.prepare(
-    `SELECT * FROM (
-       SELECT * FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 50
-     ) ORDER BY id ASC`
-  ).all(conversationId) as Message[];
+  let messages: Message[];
+  if (beforeId && !isNaN(beforeId)) {
+    messages = db.prepare(
+      `SELECT * FROM (
+         SELECT * FROM messages WHERE conversation_id = ? AND id < ? ORDER BY id DESC LIMIT 50
+       ) ORDER BY id ASC`
+    ).all(conversationId, beforeId) as Message[];
+  } else {
+    messages = db.prepare(
+      `SELECT * FROM (
+         SELECT * FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 50
+       ) ORDER BY id ASC`
+    ).all(conversationId) as Message[];
+  }
 
   res.json(messages);
 }

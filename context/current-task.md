@@ -1,7 +1,7 @@
 # current-task — The Single Active Task
 
 **Task:** F6 — Polish
-**Status:** not started
+**Status:** completed
 **Spec:** see `features.md` → F6. Read `stack.md` and `architecture.md` before starting.
 
 ## Scope
@@ -18,13 +18,9 @@
 
 Later features.
 
-## Checklist (verify before marking done)
+## Checklist (verified)
 
-- [ ] No layout jumps or unstyled flashes
-- [ ] Killing the server shows disconnected and restart recovers
-- [ ] Every list has a sensible empty state
-- [ ] `npm run build --prefix client` — clean
-
-## On completion
-
-Append entry to `done.md` → commit.
+- [x] No layout jumps or unstyled flashes
+- [x] Killing the server shows disconnected and restart recovers
+- [x] Every list has a sensible empty state
+- [x] `npm run build --prefix client` — clean

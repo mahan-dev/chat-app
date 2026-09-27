@@ -109,5 +109,26 @@ export function setupSockets(io: Server): void {
         }
       }
     });
+
+    socket.on('typing', (data: { conversation_id?: number; is_typing?: boolean }) => {
+      try {
+        const { conversation_id, is_typing } = data || {};
+        if (!conversation_id || typeof conversation_id !== 'number') return;
+
+        const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(conversation_id) as any;
+        if (!conv) return;
+
+        if (conv.user_a !== userId && conv.user_b !== userId) return;
+
+        const peerId = conv.user_a === userId ? conv.user_b : conv.user_a;
+        io.to(`user:${peerId}`).emit('typing', {
+          conversation_id,
+          user_id: userId,
+          is_typing: Boolean(is_typing),
+        });
+      } catch (err) {
+        // ignore
+      }
+    });
   });
 }
