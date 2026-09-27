@@ -1,26 +1,30 @@
 # current-task — The Single Active Task
 
-**Task:** F5 — Delete account
+**Task:** F6 — Polish
 **Status:** not started
-**Spec:** see `features.md` → F5. Read `stack.md` and `architecture.md` before starting.
+**Spec:** see `features.md` → F6. Read `stack.md` and `architecture.md` before starting.
 
 ## Scope
 
-- Server: `DELETE /api/me` requiring `{password}`; transaction: anonymize user (`deleted#<id>`, blank profile fields, clear password_hash, set deleted_at), disconnect user sockets, `message:send` validation rejecting messages to/from deleted users.
-- Client: Danger zone on `/profile` — type-password-to-confirm dialog; on success clear storage → `/login`; deleted peers render as "Deleted User" with disabled message input.
+- Auto-scroll (only when already at bottom)
+- Empty states (no conversations, no messages, no search results)
+- Loading states
+- Connection-status indicator
+- Failed-send feedback
+- Consistent Tailwind pass
+- Usable at 375px width
 
 ## Out of scope
 
-Polish features (F6).
+Later features.
 
 ## Checklist (verify before marking done)
 
-- [ ] Deleted account cannot log in and old JWT gets 401
-- [ ] Other user sees full conversation, attributed to "Deleted User", and cannot send to it
-- [ ] No profile data of deleted user survives in DB
-- [ ] `cd server && npx tsc --noEmit` — clean
+- [ ] No layout jumps or unstyled flashes
+- [ ] Killing the server shows disconnected and restart recovers
+- [ ] Every list has a sensible empty state
 - [ ] `npm run build --prefix client` — clean
 
 ## On completion
 
-Append entry to `done.md` → load F6 into this file → commit.
+Append entry to `done.md` → commit.

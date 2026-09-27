@@ -3,7 +3,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { initDb } from './db.js';
-import { signupHandler, loginHandler, getMeHandler, patchMeHandler, requireAuth } from './auth.js';
+import { signupHandler, loginHandler, getMeHandler, patchMeHandler, deleteMeHandler, requireAuth } from './auth.js';
 import { getUsersHandler } from './users.js';
 import { createConversationHandler, getConversationsHandler, getMessagesHandler } from './conversations.js';
 import { setupSockets } from './sockets.js';
@@ -40,6 +40,7 @@ app.post('/api/auth/signup', signupHandler);
 app.post('/api/auth/login', loginHandler);
 app.get('/api/me', requireAuth, getMeHandler);
 app.patch('/api/me', requireAuth, patchMeHandler);
+app.delete('/api/me', requireAuth, deleteMeHandler);
 
 app.get('/api/users', requireAuth, getUsersHandler);
 app.get('/api/conversations', requireAuth, getConversationsHandler);

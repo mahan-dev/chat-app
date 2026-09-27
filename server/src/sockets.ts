@@ -7,7 +7,16 @@ interface JwtPayload {
   userId: number;
 }
 
+let ioInstance: Server | null = null;
+
+export function disconnectUserSockets(userId: number): void {
+  if (ioInstance) {
+    ioInstance.in(`user:${userId}`).disconnectSockets(true);
+  }
+}
+
 export function setupSockets(io: Server): void {
+  ioInstance = io;
   io.use((socket: Socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token || typeof token !== 'string') {
@@ -68,6 +77,14 @@ export function setupSockets(io: Server): void {
 
         if (conv.user_a !== userId && conv.user_b !== userId) {
           if (typeof ack === 'function') ack({ error: 'Access denied' });
+          return;
+        }
+
+        // Verify peer is not deleted
+        const peerId = conv.user_a === userId ? conv.user_b : conv.user_a;
+        const peer = db.prepare('SELECT deleted_at FROM users WHERE id = ?').get(peerId) as any;
+        if (!peer || peer.deleted_at) {
+          if (typeof ack === 'function') ack({ error: 'Cannot send message to a deleted user' });
           return;
         }
 

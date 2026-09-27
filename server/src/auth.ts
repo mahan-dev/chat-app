@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from './db.js';
 import { UserProfile } from './types.js';
+import { disconnectUserSockets } from './sockets.js';
 
 export interface AuthedRequest extends Request {
   user?: UserProfile;
@@ -171,4 +172,37 @@ export function patchMeHandler(req: AuthedRequest, res: Response): void {
 
   const updated = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   res.json(dbUserToProfile(updated));
+}
+
+export function deleteMeHandler(req: AuthedRequest, res: Response): void {
+  const userId = req.userId!;
+  const { password } = req.body;
+
+  if (!password || typeof password !== 'string') {
+    res.status(401).json({ error: 'Wrong password' });
+    return;
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+  if (!user || user.deleted_at || !user.password_hash || !bcrypt.compareSync(password, user.password_hash)) {
+    res.status(401).json({ error: 'Wrong password' });
+    return;
+  }
+
+  db.transaction(() => {
+    db.prepare(
+      `UPDATE users 
+       SET username = ?, 
+           first_name = '', 
+           last_name = '', 
+           bio = '', 
+           password_hash = '', 
+           deleted_at = datetime('now') 
+       WHERE id = ?`
+    ).run(`deleted#${userId}`, userId);
+  })();
+
+  disconnectUserSockets(userId);
+
+  res.status(204).send();
 }
