@@ -7,6 +7,8 @@ import { apiFetch } from '@/lib/api';
 import { getToken, setAuth, clearAuth } from '@/lib/auth';
 import { UserProfile } from '@/lib/types';
 import { Avatar } from '@/components/Avatar';
+import { ConfirmModal } from '@/components/ConfirmModal';
+
 import { getDisplayName } from '@/lib/utils';
 import { disconnectSocket } from '@/lib/socket';
 
@@ -202,58 +204,43 @@ export default function ProfilePage() {
               Permanently delete your account and anonymize your profile. This action cannot be undone.
             </p>
 
-            {deleteError && (
-              <div className="mb-4 rounded-2xl bg-[#FDF2F0] p-4 text-sm text-[#C66B3D]">
-                {deleteError}
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="rounded-2xl border border-[#C66B3D] bg-white px-4 py-2.5 text-sm font-medium text-[#C66B3D] transition-colors hover:bg-[#FDF2F0]"
+            >
+              Delete account...
+            </button>
 
-            {!showDeleteConfirm ? (
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="rounded-2xl border border-[#C66B3D] bg-white px-4 py-2.5 text-sm font-medium text-[#C66B3D] transition-colors hover:bg-[#FDF2F0]"
-              >
-                Delete account...
-              </button>
-            ) : (
-              <form onSubmit={handleDeleteAccount} className="space-y-4 rounded-2xl border border-[#C66B3D]/30 bg-[#FDF2F0]/30 p-4">
-                <div>
-                  <label className="block text-sm font-medium text-[#2B2D2F]">
-                    Enter your password to confirm account deletion
-                  </label>
-                  <input
-                    type="password"
-                    value={deletePassword}
-                    onChange={(e) => setDeletePassword(e.target.value)}
-                    placeholder="Your current password"
-                    required
-                    className="mt-1.5 block w-full rounded-2xl border border-[#E2DCD2] bg-white px-4 py-3 text-sm text-[#2B2D2F] placeholder-[#9A9D9E] focus:border-[#C66B3D] focus:outline-none focus:ring-1 focus:ring-[#C66B3D]"
-                  />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="submit"
-                    disabled={deleting || !deletePassword}
-                    className="rounded-2xl bg-[#C66B3D] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#b05930] focus:outline-none focus:ring-2 focus:ring-[#C66B3D] focus:ring-offset-2 disabled:opacity-50"
-                  >
-                    {deleting ? 'Deleting account...' : 'Yes, delete my account'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDeleteConfirm(false);
-                      setDeletePassword('');
-                      setDeleteError('');
-                    }}
-                    disabled={deleting}
-                    className="rounded-2xl border border-[#E2DCD2] bg-white px-4 py-2.5 text-sm font-medium text-[#2B2D2F] transition-colors hover:bg-[#F4F1EA]"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
+            <ConfirmModal
+              isOpen={showDeleteConfirm}
+              title="Delete Account"
+              description="Permanently delete your account and anonymize your profile. This action cannot be undone. Please enter your password to confirm."
+              confirmText="Yes, delete my account"
+              isDestructive={true}
+              loading={deleting}
+              error={deleteError}
+              onConfirm={handleDeleteAccount}
+              onClose={() => {
+                setShowDeleteConfirm(false);
+                setDeletePassword('');
+                setDeleteError('');
+              }}
+            >
+              <div>
+                <label className="block text-sm font-medium text-[#2B2D2F]">
+                  Password confirmation
+                </label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="Your current password"
+                  required
+                  className="mt-1.5 block w-full rounded-2xl border border-[#E2DCD2] bg-white px-4 py-3 text-sm text-[#2B2D2F] placeholder-[#9A9D9E] focus:border-[#C66B3D] focus:outline-none focus:ring-1 focus:ring-[#C66B3D]"
+                />
+              </div>
+            </ConfirmModal>
           </div>
         </div>
       </main>

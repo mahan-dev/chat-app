@@ -1,21 +1,23 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useRef, ChangeEvent, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { apiFetch } from '@/lib/api';
-import { clearAuth, getToken } from '@/lib/auth';
-import { UserProfile, ConversationSummary, Message } from '@/lib/types';
-import { Avatar } from '@/components/Avatar';
-import { getDisplayName } from '@/lib/utils';
-import { getSocket, disconnectSocket } from '@/lib/socket';
+import { useEffect, useState, useRef, ChangeEvent, FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { apiFetch } from "@/lib/api";
+import { clearAuth, getToken } from "@/lib/auth";
+import { UserProfile, ConversationSummary, Message } from "@/lib/types";
+import { Avatar } from "@/components/Avatar";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { getDisplayName } from "@/lib/utils";
+import { getSocket, disconnectSocket } from "@/lib/socket";
 
 export default function ChatPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [activeConversation, setActiveConversation] = useState<ConversationSummary | null>(null);
-  
+  const [activeConversation, setActiveConversation] =
+    useState<ConversationSummary | null>(null);
+
   const activeConversationRef = useRef<ConversationSummary | null>(null);
   useEffect(() => {
     activeConversationRef.current = activeConversation;
@@ -23,23 +25,24 @@ export default function ChatPage() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState('');
+  const [sendError, setSendError] = useState("");
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  
+  const [searchError, setSearchError] = useState("");
+
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const scrollToBottom = () => {
-    console.log("hi")
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    console.log("hi");
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -49,13 +52,13 @@ export default function ChatPage() {
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.replace('/login');
+      router.replace("/login");
       return;
     }
 
     Promise.all([
-      apiFetch<UserProfile>('/api/me'),
-      apiFetch<ConversationSummary[]>('/api/conversations'),
+      apiFetch<UserProfile>("/api/me"),
+      apiFetch<ConversationSummary[]>("/api/conversations"),
     ])
       .then(([profile, convs]) => {
         setCurrentUser(profile);
@@ -64,9 +67,9 @@ export default function ChatPage() {
       })
       .catch((err: unknown) => {
         const errorObj = err as { message?: string };
-        setError(errorObj.message || 'Failed to initialize session');
+        setError(errorObj.message || "Failed to initialize session");
         clearAuth();
-        router.replace('/login');
+        router.replace("/login");
       });
 
     const socket = getSocket();
@@ -83,7 +86,7 @@ export default function ChatPage() {
             return updated;
           } else {
             // New conversation we didn't have in state yet, fetch conversations list
-            apiFetch<ConversationSummary[]>('/api/conversations')
+            apiFetch<ConversationSummary[]>("/api/conversations")
               .then((convs) => setConversations(convs))
               .catch(() => {});
             return prev;
@@ -99,10 +102,10 @@ export default function ChatPage() {
         }
       };
 
-      socket.on('message:new', handleNewMessage);
+      socket.on("message:new", handleNewMessage);
 
       return () => {
-        socket.off('message:new', handleNewMessage);
+        socket.off("message:new", handleNewMessage);
       };
     }
   }, [router]);
@@ -110,13 +113,15 @@ export default function ChatPage() {
   const selectConversation = async (conv: ConversationSummary) => {
     setActiveConversation(conv);
     setMessagesLoading(true);
-    setSendError('');
+    setSendError("");
     try {
-      const msgs = await apiFetch<Message[]>(`/api/conversations/${conv.id}/messages`);
+      const msgs = await apiFetch<Message[]>(
+        `/api/conversations/${conv.id}/messages`,
+      );
       setMessages(msgs);
     } catch (err: unknown) {
       const errorObj = err as { message?: string };
-      setSendError(errorObj.message || 'Failed to load messages');
+      setSendError(errorObj.message || "Failed to load messages");
       setMessages([]);
     } finally {
       setMessagesLoading(false);
@@ -129,10 +134,10 @@ export default function ChatPage() {
     if (!val.trim()) {
       setSearchResults([]);
       setSearching(false);
-      setSearchError('');
+      setSearchError("");
     } else {
       setSearching(true);
-      setSearchError('');
+      setSearchError("");
     }
   };
 
@@ -154,8 +159,8 @@ export default function ChatPage() {
         })
         .catch((err: unknown) => {
           const errorObj = err as { name?: string; message?: string };
-          if (errorObj.name === 'AbortError') return;
-          setSearchError(errorObj.message || 'Search failed');
+          if (errorObj.name === "AbortError") return;
+          setSearchError(errorObj.message || "Search failed");
           setSearchResults([]);
           setSearching(false);
         });
@@ -169,10 +174,13 @@ export default function ChatPage() {
 
   const handleSelectUser = async (user: UserProfile) => {
     try {
-      const summary = await apiFetch<ConversationSummary>('/api/conversations', {
-        method: 'POST',
-        body: JSON.stringify({ username: user.username }),
-      });
+      const summary = await apiFetch<ConversationSummary>(
+        "/api/conversations",
+        {
+          method: "POST",
+          body: JSON.stringify({ username: user.username }),
+        },
+      );
 
       setConversations((prev) => {
         const exists = prev.some((c) => c.id === summary.id);
@@ -182,13 +190,13 @@ export default function ChatPage() {
         return [summary, ...prev];
       });
 
-      setSearchQuery('');
+      setSearchQuery("");
       setSearchResults([]);
       setSearching(false);
       await selectConversation(summary);
     } catch (err: unknown) {
       const errorObj = err as { message?: string };
-      setSearchError(errorObj.message || 'Failed to open conversation');
+      setSearchError(errorObj.message || "Failed to open conversation");
     }
   };
 
@@ -198,33 +206,37 @@ export default function ChatPage() {
 
     const content = newMessage.trim();
     if (content.length > 2000) {
-      setSendError('Message is too long (max 2000 chars)');
+      setSendError("Message is too long (max 2000 chars)");
       return;
     }
 
     const socket = getSocket();
     if (!socket) {
-      setSendError('Not connected to chat server');
+      setSendError("Not connected to chat server");
       return;
     }
 
     setSending(true);
-    setSendError('');
+    setSendError("");
 
-    socket.emit('message:send', { conversation_id: activeConversation.id, content }, (res: { message?: Message; error?: string }) => {
-      setSending(false);
-      if (res.error) {
-        setSendError(res.error);
-      } else {
-        setNewMessage('');
-      }
-    });
+    socket.emit(
+      "message:send",
+      { conversation_id: activeConversation.id, content },
+      (res: { message?: Message; error?: string }) => {
+        setSending(false);
+        if (res.error) {
+          setSendError(res.error);
+        } else {
+          setNewMessage("");
+        }
+      },
+    );
   };
 
   const handleLogout = () => {
     disconnectSocket();
     clearAuth();
-    router.replace('/login');
+    router.replace("/login");
   };
 
   if (loading) {
@@ -248,7 +260,7 @@ export default function ChatPage() {
       {/* Sidebar: hidden on mobile when active conversation is selected */}
       <aside
         className={`flex w-full flex-col border-r border-[#E2DCD2] bg-[#FAF8F5] md:w-80 ${
-          activeConversation ? 'hidden md:flex' : 'flex'
+          activeConversation ? "hidden md:flex" : "flex"
         }`}
       >
         {/* Current user header */}
@@ -256,8 +268,12 @@ export default function ChatPage() {
           <div className="flex items-center gap-3 overflow-hidden">
             {currentUser && <Avatar user={currentUser} size="sm" />}
             <div className="truncate">
-              <h2 className="truncate text-sm font-semibold text-[#2B2D2F]">{currentUser ? getDisplayName(currentUser) : ''}</h2>
-              <p className="truncate text-xs text-[#6B6E70]">@{currentUser?.username}</p>
+              <h2 className="truncate text-sm font-semibold text-[#2B2D2F]">
+                {currentUser ? getDisplayName(currentUser) : ""}
+              </h2>
+              <p className="truncate text-xs text-[#6B6E70]">
+                @{currentUser?.username}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -269,7 +285,7 @@ export default function ChatPage() {
               ⚙
             </Link>
             <button
-              onClick={handleLogout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="rounded-full border border-[#E2DCD2] bg-white p-2 text-xs font-medium text-[#2B2D2F] hover:bg-[#F4F1EA]"
               title="Log out"
             >
@@ -292,11 +308,17 @@ export default function ChatPage() {
           {searchQuery.trim() && (
             <div className="absolute left-4 right-4 top-16 z-10 max-h-60 overflow-y-auto rounded-2xl border border-[#E2DCD2] bg-white shadow-md">
               {searching ? (
-                <div className="p-3 text-center text-xs text-[#6B6E70]">Searching...</div>
+                <div className="p-3 text-center text-xs text-[#6B6E70]">
+                  Searching...
+                </div>
               ) : searchError ? (
-                <div className="p-3 text-center text-xs text-[#C66B3D]">{searchError}</div>
+                <div className="p-3 text-center text-xs text-[#C66B3D]">
+                  {searchError}
+                </div>
               ) : searchResults.length === 0 ? (
-                <div className="p-3 text-center text-xs text-[#6B6E70]">No users found</div>
+                <div className="p-3 text-center text-xs text-[#6B6E70]">
+                  No users found
+                </div>
               ) : (
                 searchResults.map((user) => (
                   <button
@@ -306,8 +328,12 @@ export default function ChatPage() {
                   >
                     <Avatar user={user} size="sm" />
                     <div className="truncate">
-                      <div className="text-sm font-medium text-[#2B2D2F]">{getDisplayName(user)}</div>
-                      <div className="text-xs text-[#6B6E70]">@{user.username}</div>
+                      <div className="text-sm font-medium text-[#2B2D2F]">
+                        {getDisplayName(user)}
+                      </div>
+                      <div className="text-xs text-[#6B6E70]">
+                        @{user.username}
+                      </div>
                     </div>
                   </button>
                 ))
@@ -330,13 +356,17 @@ export default function ChatPage() {
                   key={conv.id}
                   onClick={() => selectConversation(conv)}
                   className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-colors ${
-                    isActive ? 'bg-[#E8DCC7]/50 font-medium' : 'hover:bg-[#FAF8F5]'
+                    isActive
+                      ? "bg-[#E8DCC7]/50 font-medium"
+                      : "hover:bg-[#FAF8F5]"
                   }`}
                 >
                   <Avatar user={conv.peer} size="md" />
                   <div className="flex-1 truncate">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-[#2B2D2F]">{getDisplayName(conv.peer)}</span>
+                      <span className="text-sm font-semibold text-[#2B2D2F]">
+                        {getDisplayName(conv.peer)}
+                      </span>
                       {conv.last_message && (
                         <span className="text-[10px] text-[#9A9D9E]">
                           {conv.last_message.created_at.slice(11, 16)}
@@ -344,7 +374,9 @@ export default function ChatPage() {
                       )}
                     </div>
                     <p className="truncate text-xs text-[#6B6E70]">
-                      {conv.last_message ? conv.last_message.content : 'No messages yet'}
+                      {conv.last_message
+                        ? conv.last_message.content
+                        : "No messages yet"}
                     </p>
                   </div>
                 </button>
@@ -357,7 +389,7 @@ export default function ChatPage() {
       {/* Main Chat Pane: hidden on mobile when no active conversation */}
       <main
         className={`flex-1 flex-col bg-[#F4F1EA] ${
-          activeConversation ? 'flex' : 'hidden md:flex'
+          activeConversation ? "flex" : "hidden md:flex"
         }`}
       >
         {activeConversation ? (
@@ -373,8 +405,12 @@ export default function ChatPage() {
                 </button>
                 <Avatar user={activeConversation.peer} size="md" />
                 <div>
-                  <h2 className="font-semibold text-[#2B2D2F]">{getDisplayName(activeConversation.peer)}</h2>
-                  <p className="text-xs text-[#6B6E70]">@{activeConversation.peer.username}</p>
+                  <h2 className="font-semibold text-[#2B2D2F]">
+                    {getDisplayName(activeConversation.peer)}
+                  </h2>
+                  <p className="text-xs text-[#6B6E70]">
+                    @{activeConversation.peer.username}
+                  </p>
                 </div>
               </div>
             </header>
@@ -388,32 +424,40 @@ export default function ChatPage() {
               ) : messages.length === 0 ? (
                 <div className="flex h-full items-center justify-center text-center">
                   <div className="max-w-xs rounded-3xl border border-[#E2DCD2] bg-[#FAF8F5] p-6 text-xs text-[#6B6E70]">
-                    No messages yet. Send a message below to start the conversation!
+                    No messages yet. Send a message below to start the
+                    conversation!
                   </div>
                 </div>
               ) : (
                 messages.map((msg) => {
                   const isMe = msg.sender_id === currentUser?.id;
-                  const senderUser = isMe ? currentUser : activeConversation.peer;
-                  const timeString = new Date(msg.created_at.replace(' ', 'T') + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  const senderUser = isMe
+                    ? currentUser
+                    : activeConversation.peer;
+                  const timeString = new Date(
+                    msg.created_at.replace(" ", "T") + "Z",
+                  ).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
 
                   return (
                     <div
                       key={msg.id}
-                      className={`flex items-end gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
+                      className={`flex items-end gap-2 ${isMe ? "flex-row-reverse" : "flex-row"}`}
                     >
                       <Avatar user={senderUser} size="sm" />
                       <div
                         className={`max-w-md rounded-2xl px-4 py-2.5 text-sm shadow-xs ${
                           isMe
-                            ? 'bg-[#2B2D2F] text-white rounded-br-xs'
-                            : 'bg-white text-[#2B2D2F] border border-[#E2DCD2] rounded-bl-xs'
+                            ? "bg-[#2B2D2F] text-white rounded-br-xs"
+                            : "bg-white text-[#2B2D2F] border border-[#E2DCD2] rounded-bl-xs"
                         }`}
                       >
                         <div className="break-words">{msg.content}</div>
                         <div
                           className={`mt-1 text-[10px] text-right ${
-                            isMe ? 'text-[#C5C7C8]' : 'text-[#9A9D9E]'
+                            isMe ? "text-[#C5C7C8]" : "text-[#9A9D9E]"
                           }`}
                         >
                           {timeString}
@@ -435,7 +479,8 @@ export default function ChatPage() {
               )}
               {activeConversation.peer.deleted ? (
                 <div className="text-center text-xs text-[#6B6E70] py-2">
-                  This user has deleted their account. This conversation is read-only.
+                  This user has deleted their account. This conversation is
+                  read-only.
                 </div>
               ) : (
                 <form onSubmit={handleSendMessage} className="flex gap-2">
@@ -461,14 +506,26 @@ export default function ChatPage() {
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-center">
             <div className="max-w-md rounded-3xl border border-[#E2DCD2] bg-[#FAF8F5] p-8 shadow-sm">
-              <h3 className="mb-2 text-xl font-semibold text-[#2B2D2F]">No conversation selected</h3>
+              <h3 className="mb-2 text-xl font-semibold text-[#2B2D2F]">
+                No conversation selected
+              </h3>
               <p className="text-sm text-[#6B6E70]">
-                Search for a user in the sidebar or select an existing conversation to view chat details.
+                Search for a user in the sidebar or select an existing
+                conversation to view chat details.
               </p>
             </div>
           </div>
         )}
       </main>
+
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        title="Log out"
+        description="Are you sure you want to log out of your account?"
+        confirmText="Log out"
+        onConfirm={handleLogout}
+        onClose={() => setShowLogoutConfirm(false)}
+      />
     </div>
   );
 }
